@@ -1,16 +1,184 @@
 ---
-title: "Reproducible Research: Course Project 2"
+title: 'Impact of natural disasters and weather effects in US'
 output: 
   html_document:
     keep_md: true
 ---
 
-## Loading and preprocessing the data
-```{r}
-setwd('C:/Users/mtk/OneDrive/Documents/R/assignments/storm-data-analysis');
-if (!file.exists('StormData.csv.bz2')) {
-  download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2", 'StormData.csv.bz2')
+Storms and other severe weather events can cause both public health and economic problems for communities and municipalities. Many severe events can result in fatalities, injuries, and property damage, and preventing such outcomes to the extent possible is a key concern.
+
+In this research we will analyse the 'Storm data' from the National Weather Service with observations from 1950 to November 2011 through US and will try to understand wich events were most harfull for human health and country economy.
+
+
+## Synopsis
+Our brief analysis reveals, that tornados are most dangerous weather natural disaster in US - it causes most human deaths and injuries. Excessive heat takes second place in harming human health.
+As for economy - most propery damage is done by hurricanes / typhoons and draught is most harmful for crops.
+
+
+## Data Processing 
+ 
+At first we'll need to download the 'Storm Data' and read the stormData
+```{r cache=TRUE}
+if (!file.exists('data.csv.bz2')) {
+  download.file('https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2', 'data.csv.bz2')
 }
-dataset <- read.csv('StormData.csv.bz2')
-summary(dataset)
+stormData <- read.csv('data.csv.bz2')
 ```
+
+After loading the data we can see a serious mess in 'EVTYPE' column. It has a lot of similar values like 'tstm wnd' and 'THUNDERSTORM WINDS'. A lot of events has paramers in name like 'Wind 60MPH', where wind speed is irrelevant to our analysis. Sometimes names are in lowercase, sometime uppercase, etc.:
+```{r}
+head(unique(stormData$EVTYPE), 26)
+```
+
+Let's bring event types to one form to make our analysis more accurate:
+```{r cache=TRUE}
+eventTypes <- tolower(stormData$EVTYPE)
+## replace punctuation with whitespaces
+eventTypes <- gsub('[[:blank:][:punct:]+]', ' ', eventTypes)
+eventTypes <- gsub('wnd', 'wind', eventTypes)
+eventTypes <- gsub('trees', 'tree', eventTypes)
+eventTypes <- gsub('winds', 'wind', eventTypes)
+eventTypes <- gsub('tstm', 'thunderstorm', eventTypes)
+eventTypes <- gsub('f0', '', eventTypes)
+eventTypes <- gsub('mph', '', eventTypes)
+eventTypes <- gsub('/ ', ' ', eventTypes)
+eventTypes <- gsub('/', ' ', eventTypes)
+eventTypes <- gsub('[[:digit:]+]', '', eventTypes)
+eventTypes <- gsub('[[:space:]{2,}]', ' ', eventTypes)
+eventTypes <- gsub(' g ', '', eventTypes)
+eventTypes <- gsub(' - ', '', eventTypes)
+stormData$EVTYPE <- eventTypes
+```
+
+Still, it's not perfect, but it makes our analysis more precise.
+
+## Impact on human health 
+ 
+Now let's look into events that made most harm to population and caused injusries and deaths.  
+
+#### Top events that caused most injuries
+Now we will aggregate (summurize) total injuries quantity by weather event type
+```{r cache=TRUE}
+injuriesCountByEvent <- aggregate(stormData$INJURIES, by=list(stormData$EVTYPE), FUN=sum)
+injuriesCountByEvent <- injuriesCountByEvent[order(-injuriesCountByEvent$x), ]
+injuriesCountByEvent <- head(injuriesCountByEvent, 5)
+names(injuriesCountByEvent) <- c('Event', 'Injuries')
+injuriesCountByEvent
+```
+
+#### Top events that caused most deaths
+And we'll repeat the same for deaths:
+```{r cache=TRUE}
+deathsCountByEvent <- aggregate(stormData$FATALITIES, by=list(stormData$EVTYPE), FUN=sum)
+deathsCountByEvent <- deathsCountByEvent[order(-deathsCountByEvent$x), ]
+deathsCountByEvent <- head(deathsCountByEvent, 5)
+names(deathsCountByEvent) <- c('Event', 'Deaths')
+deathsCountByEvent
+```
+
+## Impact on US Economics
+Now let's look into events that harmed the US economics: caused damage to property and crops.
+In this stormData we have PROPDMG & CROPDMG fields with numbers and also PROPDMGEXP & CROPDMGEXP fields with H/K/M/B letters, meaning hundreds, thouthands, millions and billions. Combining this two fields will get the exact damage in US dollars. 
+
+This function will calculate the new propertyDamage field from DMG and DMGEXP fields:
+```{r cache=TRUE}
+calculateDamage <- function (amount, type) {
+    multiplier <- switch(as.character(type),
+        h = 10^2,
+        H = 10^2,
+        k = 10^3,
+        K = 10^3,
+        m = 10^6,
+        M = 10^6,
+        B = 10^9,
+        Default = 1
+    )
+    
+    if (as.numeric(amount) > 0) {
+        return (as.numeric(amount * multiplier))
+    } else {
+        return(0)
+    }
+}
+```
+
+#### Top 5 events that caused most property damage
+We will calculate damage in absolute numbers in USD and repeat the sum aggregation by event type as we did for human injuries and deaths for property damage
+```{r cache=TRUE}
+stormData$propertyDamage <- mapply(calculateDamage, stormData$PROPDMG, stormData$PROPDMGEXP)
+stormData$propertyDamage <- as.numeric(stormData$propertyDamage)
+propertyDamageByEvent <- aggregate(stormData$propertyDamage, by=list(stormData$EVTYPE), FUN=sum)
+propertyDamageByEvent <- propertyDamageByEvent[order(-propertyDamageByEvent$x), ]
+propertyDamageByEvent <- head(propertyDamageByEvent, 5)
+names(propertyDamageByEvent) <- c('Event', 'Damage')
+propertyDamageByEvent
+```
+
+
+#### Top 5 events that caused most crops damage:
+And repeat the same for the crops:
+```{r cache=TRUE}
+stormData$cropsDamage <- mapply(calculateDamage, stormData$CROPDMG, stormData$CROPDMGEXP)
+stormData$cropsDamage <- as.numeric(stormData$cropsDamage)
+cropsDamageByEvent <- aggregate(stormData$cropsDamage, by=list(stormData$EVTYPE), FUN=sum)
+cropsDamageByEvent <- cropsDamageByEvent[order(-cropsDamageByEvent$x), ]
+cropsDamageByEvent <- head(cropsDamageByEvent, 5)
+names(cropsDamageByEvent) <- c('Event', 'Damage')
+cropsDamageByEvent
+```
+
+
+## Results
+Let's visualise our data and view the results.  
+
+We will use GGPlot2 and GridExtra libraries for that purpose.
+```{r}
+library(ggplot2)
+library(gridExtra)
+```
+
+#### Impact on human health:
+```{r}
+grid.arrange(
+    ggplot(injuriesCountByEvent, aes(Event, Injuries, fill = Event)) + 
+        geom_bar(stat='identity') +
+        theme_bw() +
+        theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()),
+    ggplot(deathsCountByEvent, aes(Event, Deaths, fill = Event)) + 
+        geom_bar(stat='identity') + 
+        theme_bw() +
+        theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()),
+    top = 'Deaths and injuries caused by dangerous weather events in US (1950-2011)', 
+    ncol=2
+)
+```
+
+As it's clearly seen tornado is the most dangerous weather effect, that caused most deaths and injuries.
+
+#### Impact on US economics
+Let's build similar plots for damage on crops and property:
+```{r}
+grid.arrange(
+    ggplot(propertyDamageByEvent, aes(Event, Damage, fill = Event)) + 
+        geom_bar(stat='identity') +
+        coord_flip() + 
+        xlab('') +
+        ylab('Damage (USD)') +
+        scale_y_continuous(label=scales::comma) +
+        theme_bw() +
+        theme(legend.position="none"),
+    ggplot(cropsDamageByEvent, aes(Event, Damage, fill = Event)) + 
+        geom_bar(stat='identity') + 
+        coord_flip() + 
+        xlab('') +
+        ylab('Damage (USD)') +
+        scale_y_continuous(label=scales::comma) +
+        theme_bw() +
+        theme(legend.position="none"),
+    top = 'Crops and property damage (in USD) caused by dangerous weather events in US (1950-2011)', 
+    nrow=2
+)
+```
+
+As we can see - the typhoons dealt most damage to property in US - about ~70 billions of dollars in 61 years. 
+And it's clearly seen that drought has the most serious impact on crops in United States - about ~14 billion dollars is lost to draught in 61 years.
