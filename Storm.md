@@ -70,7 +70,7 @@ eventTypes <- gsub(' - ', '', eventTypes)
 stormData$EVTYPE <- eventTypes
 ```
 
-Still, it's not purfect, but it makes our analysis more precise.
+Still, it's not perfect, but it makes our analysis more precise.
 
 ## Impact on human health 
  
@@ -80,11 +80,11 @@ Now let's look into events that made most harm to population and caused injusrie
 Now we will aggregate (summurize) total injuries quantity by weather event type
 
 ```r
-injuriesCountByType <- aggregate(stormData$INJURIES, by=list(stormData$EVTYPE), FUN=sum)
-injuriesCountByType <- injuriesCountByType[order(-injuriesCountByType$x), ]
-injuriesCountByType <- head(injuriesCountByType, 5)
-names(injuriesCountByType) <- c('Event', 'Injuries')
-injuriesCountByType
+injuriesCountByEvent <- aggregate(stormData$INJURIES, by=list(stormData$EVTYPE), FUN=sum)
+injuriesCountByEvent <- injuriesCountByEvent[order(-injuriesCountByEvent$x), ]
+injuriesCountByEvent <- head(injuriesCountByEvent, 5)
+names(injuriesCountByEvent) <- c('Event', 'Injuries')
+injuriesCountByEvent
 ```
 
 ```
@@ -100,11 +100,11 @@ injuriesCountByType
 And we'll repeat the same for deaths:
 
 ```r
-deathsCountByType <- aggregate(stormData$FATALITIES, by=list(stormData$EVTYPE), FUN=sum)
-deathsCountByType <- deathsCountByType[order(-deathsCountByType$x), ]
-deathsCountByType <- head(deathsCountByType, 5)
-names(deathsCountByType) <- c('Event', 'Deaths')
-deathsCountByType
+deathsCountByEvent <- aggregate(stormData$FATALITIES, by=list(stormData$EVTYPE), FUN=sum)
+deathsCountByEvent <- deathsCountByEvent[order(-deathsCountByEvent$x), ]
+deathsCountByEvent <- head(deathsCountByEvent, 5)
+names(deathsCountByEvent) <- c('Event', 'Deaths')
+deathsCountByEvent
 ```
 
 ```
@@ -149,11 +149,11 @@ We will calculate damage in absolute numbers in USD and repeat the sum aggregati
 ```r
 stormData$propertyDamage <- mapply(calculateDamage, stormData$PROPDMG, stormData$PROPDMGEXP)
 stormData$propertyDamage <- as.numeric(stormData$propertyDamage)
-propertyDamageByEventType <- aggregate(stormData$propertyDamage, by=list(stormData$EVTYPE), FUN=sum)
-propertyDamageByEventType <- propertyDamageByEventType[order(-propertyDamageByEventType$x), ]
-propertyDamageByEventType <- head(propertyDamageByEventType, 5)
-names(propertyDamageByEventType) <- c('Event', 'Damage')
-propertyDamageByEventType
+propertyDamageByEvent <- aggregate(stormData$propertyDamage, by=list(stormData$EVTYPE), FUN=sum)
+propertyDamageByEvent <- propertyDamageByEvent[order(-propertyDamageByEvent$x), ]
+propertyDamageByEvent <- head(propertyDamageByEvent, 5)
+names(propertyDamageByEvent) <- c('Event', 'Damage')
+propertyDamageByEvent
 ```
 
 ```
@@ -172,11 +172,11 @@ And repeat the same for the crops:
 ```r
 stormData$cropsDamage <- mapply(calculateDamage, stormData$CROPDMG, stormData$CROPDMGEXP)
 stormData$cropsDamage <- as.numeric(stormData$cropsDamage)
-cropsDamageByEventType <- aggregate(stormData$cropsDamage, by=list(stormData$EVTYPE), FUN=sum)
-cropsDamageByEventType <- cropsDamageByEventType[order(-cropsDamageByEventType$x), ]
-cropsDamageByEventType <- head(cropsDamageByEventType, 5)
-names(cropsDamageByEventType) <- c('Event', 'Damage')
-cropsDamageByEventType
+cropsDamageByEvent <- aggregate(stormData$cropsDamage, by=list(stormData$EVTYPE), FUN=sum)
+cropsDamageByEvent <- cropsDamageByEvent[order(-cropsDamageByEvent$x), ]
+cropsDamageByEvent <- head(cropsDamageByEvent, 5)
+names(cropsDamageByEvent) <- c('Event', 'Damage')
+cropsDamageByEvent
 ```
 
 ```
@@ -190,26 +190,30 @@ cropsDamageByEventType
 
 
 ## Results
-Let's visualise our data and view the results. 
+Let's visualise our data and view the results.  
+
+We will use GGPlot2 and GridExtra libraries for that purpose.
+
+```r
+library(ggplot2)
+library(gridExtra)
+```
 
 #### Impact on human health:
 
 ```r
-library(ggplot2)
-ggplot(injuriesCountByType, aes(Event, Injuries, fill = Event)) + 
-    geom_bar(stat='identity') + 
-    theme_bw() + 
-    ggtitle('Injuries caused by dangerous weather events in US (1950-2011)')
-```
-
-![](Storm_files/figure-html/unnamed-chunk-9-1.png)<!-- -->
-
-
-```r
-ggplot(deathsCountByType, aes(Event, Deaths, fill = Event)) + 
-    geom_bar(stat='identity') + 
-    theme_bw() + 
-    ggtitle('Deaths caused by dangerous weather events in US (1950-2011)')
+grid.arrange(
+    ggplot(injuriesCountByEvent, aes(Event, Injuries, fill = Event)) + 
+        geom_bar(stat='identity') +
+        theme_bw() +
+        theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()),
+    ggplot(deathsCountByEvent, aes(Event, Deaths, fill = Event)) + 
+        geom_bar(stat='identity') + 
+        theme_bw() +
+        theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()),
+    top = 'Deaths and injuries caused by dangerous weather events in US (1950-2011)', 
+    ncol=2
+)
 ```
 
 ![](Storm_files/figure-html/unnamed-chunk-10-1.png)<!-- -->
@@ -220,25 +224,29 @@ As it's clearly seen tornado is the most dangerous weather effect, that caused m
 Let's build similar plots for damage on crops and property:
 
 ```r
-ggplot(propertyDamageByEventType, aes(Event, Damage, fill = Event)) + 
-    geom_bar(stat='identity') + 
-    theme_bw() + 
-    scale_y_continuous(label=scales::comma) +
-    ggtitle('Property damage (USD) caused by weather events in US (1950-2011)')
+grid.arrange(
+    ggplot(propertyDamageByEvent, aes(Event, Damage, fill = Event)) + 
+        geom_bar(stat='identity') +
+        coord_flip() + 
+        xlab('') +
+        ylab('Damage (USD)') +
+        scale_y_continuous(label=scales::comma) +
+        theme_bw() +
+        theme(legend.position="none"),
+    ggplot(cropsDamageByEvent, aes(Event, Damage, fill = Event)) + 
+        geom_bar(stat='identity') + 
+        coord_flip() + 
+        xlab('') +
+        ylab('Damage (USD)') +
+        scale_y_continuous(label=scales::comma) +
+        theme_bw() +
+        theme(legend.position="none"),
+    top = 'Crops and property damage (in USD) caused by dangerous weather events in US (1950-2011)', 
+    nrow=2
+)
 ```
 
 ![](Storm_files/figure-html/unnamed-chunk-11-1.png)<!-- -->
-
-
-```r
-ggplot(cropsDamageByEventType, aes(Event, Damage, fill = Event)) + 
-    geom_bar(stat='identity') + 
-    theme_bw() + 
-    scale_y_continuous(label=scales::comma) +
-    ggtitle('Crops damage in USD caused by dangerous weather events in US (1950-2011)')
-```
-
-![](Storm_files/figure-html/unnamed-chunk-12-1.png)<!-- -->
 
 As we can see - the typhoons dealt most damage to property in US - about ~70 billions of dollars in 61 years. 
 And it's clearly seen that drought has the most serious impact on crops in United States - about ~14 billion dollars is lost to draught in 61 years.
